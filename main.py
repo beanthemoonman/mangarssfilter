@@ -42,8 +42,11 @@ def getCache(cachefile,seconds):
     cachejson = json.load(open(cachefile, mode='r'))
     relevantcache = []
     for i in cachejson:
-        if date.fromtimestamp(i['timestamp']) < \
-                datetime.now() - timedelta(seconds=seconds * -1):
+        oldtime = datetime.fromtimestamp(i['timestamp'])
+        now = datetime.now()
+        then = now - oldtime
+        delt = timedelta(seconds=seconds)
+        if then.total_seconds() < delt.total_seconds():
             relevantcache.append(i)
     return relevantcache
 
@@ -51,9 +54,9 @@ def getCache(cachefile,seconds):
 def parseCache(cache):
     for i in cache:
         yield rfeed.Item(
-            title=i.title,
-            link=i.link,
-            description=i.description
+            title=i['title'],
+            link=i['link'],
+            description=i['description']
         )
 
 
@@ -69,7 +72,7 @@ def writeCache(cachefile,cache,feed):
                 "title": i.title,
                 "link": i.link,
                 "description": i.description,
-                "timestamp": str(now.timestamp())
+                "timestamp": now.timestamp()
             }
         )
     outfile.write(json.dumps(out))
