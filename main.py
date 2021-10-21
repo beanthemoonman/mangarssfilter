@@ -2,9 +2,8 @@
 import requests
 import rfeed
 import feedparser
-from datetime import date, datetime, timedelta
+from datetime import datetime, timedelta
 import argparse
-import itertools
 import json
 from os import path
 from lxml import html
@@ -18,8 +17,9 @@ def getFollowedSeries(followlink):
 
 def curateRssFeed(followlink, rssfeed):
     rss = feedparser.parse(rssfeed)
+    series = getFollowedSeries(followlink)
     for i in rss.entries:
-        if hasattr(i, 'link') and i.link in getFollowedSeries(followlink):
+        if hasattr(i, 'link') and i.link in series:
             yield rfeed.Item(
                 title=i.title,
                 link=i.link,
@@ -34,7 +34,7 @@ Cache format:
         "title":"abc",
         "link":"abc",
         "description":"abc",
-        "timestamp":"POSIX Timestamp Format"
+        "timestamp":POSIX Timestamp Format
     }
 ]
 """
@@ -51,30 +51,37 @@ def getCache(cachefile,seconds):
     return relevantcache
 
 
-def parseCache(cache):
+def parseCache(cache,feed):
+    links = []
+    for i in feed:
+        links.append(i.link)
     for i in cache:
-        yield rfeed.Item(
-            title=i['title'],
-            link=i['link'],
-            description=i['description']
-        )
+        if i['link'] not in links:
+            yield rfeed.Item(
+                title=i['title'],
+                link=i['link'],
+                description=i['description']
+            )
 
 
 def writeCache(cachefile,cache,feed):
     outfile = open(cachefile, mode='w')
     now = datetime.now()
     out = []
+    links = []
     for i in cache:
         out.append(i)
+        links.append(i['link'])
     for i in feed:
-        out.append(
-            {
-                "title": i.title,
-                "link": i.link,
-                "description": i.description,
-                "timestamp": now.timestamp()
-            }
-        )
+        if i.link not in links:
+            out.append(
+                {
+                    "title": i.title,
+                    "link": i.link,
+                    "description": i.description,
+                    "timestamp": now.timestamp()
+                }
+            )
     outfile.write(json.dumps(out))
 
 
@@ -114,20 +121,20 @@ def parseArgs():
 if __name__ == "__main__":
     parser = parseArgs().parse_args()
     rssfeed = parser.rssfeed
-    followlink = parser.rssfeed
+    followlink = parser.followlink
     title = parser.title
     link = parser.link
     cachefile = parser.cachefile
     seconds = parser.seconds
 
     oldrssfeed = []
-    currentrssfeed = curateRssFeed(followlink, rssfeed)
+    cache = []
+    currentrssfeed = [i for i in curateRssFeed(followlink, rssfeed)]
     if cachefile != "":
-        cache = []
         if path.exists(cachefile):
             cache = getCache(cachefile, seconds)
         writeCache(cachefile, cache, currentrssfeed)
-        oldrssfeed = parseCache(cache)
+        oldrssfeed = [i for i in parseCache(cache,currentrssfeed)]
 
     print(rfeed.Feed(
             title=title,
@@ -135,6 +142,6 @@ if __name__ == "__main__":
             description="Curated MU Feed",
             language="en-US",
             lastBuildDate=datetime.now(),
-            items=itertools.chain(oldrssfeed, currentrssfeed)
+            items=oldrssfeed + currentrssfeed
         ).rss()
     )
