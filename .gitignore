@@ -9,6 +9,10 @@ __pycache__/
 *.so
 
 cache.json
+rss.xml
+list.txt
+followedseries.txt
+login.cfg
 
 # Distribution / packaging
 .Python
